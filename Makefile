@@ -18,7 +18,7 @@ KERNEL_OBJECTS = $(KERNEL_SOURCES:%.c=$(BUILD_DIR)/%.o)
 SHELL_SOURCES = shell/shell.c
 SHELL_OBJECTS = $(SHELL_SOURCES:%.c=$(BUILD_DIR)/%.o)
 
-ASM_SOURCES = bootloader/boot.asm kernel/interrupt.asm
+ASM_SOURCES = bootloader/boot.asm
 ASM_OBJECTS = $(ASM_SOURCES:%.asm=$(BUILD_DIR)/%.o)
 
 ALL_OBJECTS = $(KERNEL_OBJECTS) $(SHELL_OBJECTS) $(ASM_OBJECTS)

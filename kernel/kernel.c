@@ -7,9 +7,13 @@ uint32_t process_count = 0;
 uint64_t system_ticks = 0;
 uint32_t next_pid = 1;
 
-/* Memory and file system globals defined in kernel.h */
-static uint8_t memory_bitmap[MAX_PAGES / 8] = {0};
-static FileSystem fs = {0};
+/* Memory and file system globals */
+uint32_t *page_directory = NULL;
+uint8_t memory_bitmap[MAX_PAGES / 8] = {0};
+FileSystem fs = {0};
+
+/* Scheduling globals */
+uint32_t schedule_interval = 10;
 
 void kernel_main(void) {
     /* Initialize kernel subsystems */
@@ -46,7 +50,6 @@ void setup_interrupts(void) {
     /* Setup interrupt handlers */
     /* In real implementation, would setup IDT and handler stubs */
     system_ticks = 0;
-    schedule_interval = 10;  /* Context switch every 10ms */
 }
 
 void setup_memory(void) {
@@ -133,28 +136,7 @@ void interrupt_handler(uint32_t interrupt_number) {
     }
 }
 
-/* Memory Management */
-static uint32_t allocate_page(void) {
-    for (uint32_t i = 256; i < MAX_PAGES; i++) {
-        uint32_t byte_idx = i / 8;
-        uint32_t bit_idx = i % 8;
-        
-        if ((memory_bitmap[byte_idx] & (1 << bit_idx)) == 0) {
-            memory_bitmap[byte_idx] |= (1 << bit_idx);
-            return i * PAGE_SIZE;
-        }
-    }
-    return 0;
-}
-
-static void free_page(uint32_t address) {
-    uint32_t page_num = address / PAGE_SIZE;
-    if (page_num < MAX_PAGES) {
-        uint32_t byte_idx = page_num / 8;
-        uint32_t bit_idx = page_num % 8;
-        memory_bitmap[byte_idx] &= ~(1 << bit_idx);
-    }
-}
+/* Memory Management - delegated to memory.c */
 
 /* Utility Functions */
 void memset(void *dest, uint8_t value, size_t count) {

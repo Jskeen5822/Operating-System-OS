@@ -10,16 +10,16 @@ void setup_interrupts(void);
 void setup_memory(void);
 void setup_filesystem(void);
 
-/* Process management */
-ProcessControlBlock *current_process;
-ProcessControlBlock process_table[MAX_PROCESSES];
-uint32_t process_count;
+/* Process management - declared in kernel.c */
+extern ProcessControlBlock *current_process;
+extern ProcessControlBlock process_table[MAX_PROCESSES];
+extern uint32_t process_count;
 
-/* Memory management */
-uint32_t *page_directory;
-uint8_t *memory_bitmap;
+/* Memory management - declared in kernel.c */
+extern uint32_t *page_directory;
+extern uint8_t memory_bitmap[MAX_PAGES / 8];
 
-/* File system */
+/* File system - declared in kernel.c */
 typedef struct {
     Inode inode_table[MAX_FILES];
     uint8_t block_bitmap[MAX_BLOCKS / 8];
@@ -27,11 +27,11 @@ typedef struct {
     uint32_t free_blocks;
 } FileSystem;
 
-FileSystem fs;
+extern FileSystem fs;
 
-/* Timer and scheduling */
-uint64_t system_ticks;
-uint32_t schedule_interval;
+/* Timer and scheduling - declared in kernel.c */
+extern uint64_t system_ticks;
+extern uint32_t schedule_interval;
 
 /* System calls */
 uint32_t sys_fork(void);
