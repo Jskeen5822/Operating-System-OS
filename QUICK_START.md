@@ -1,6 +1,27 @@
-# 🎯 Quick Start - Your Complete OS is Ready!
+# 🎯 Quick Start - Operating System OS
 
-## 🚀 Launch Right Now (3 Ways)
+## 📌 What's New: Real 64-bit Kernel Compilation! ✅
+
+The **real, bare-metal 64-bit x86-64 kernel now compiles successfully!**
+
+### Build the Real Kernel (Phase 1)
+```bash
+cd Operating-System-OS
+make -f Makefile64
+```
+**Output**: `build/bin/os_kernel.elf` (154 KB ELF executable)
+
+This is a **real operating system kernel**, not a simulation:
+- ✅ Real bootloader code (x86-64 assembly)
+- ✅ Real kernel code (C, bare-metal, no libc)
+- ✅ GDT, Paging, Memory Management, Process Scheduler
+- ✅ Proper ELF64 executable format
+
+---
+
+## 🖥️ Simulate the OS (Legacy 32-bit)
+
+You can also run the simulated versions for testing and visualization:
 
 ### **Option 1: Full Desktop GUI** ⭐ (RECOMMENDED)
 ```bash
