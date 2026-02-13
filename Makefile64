@@ -14,7 +14,7 @@ QEMU = qemu-system-x86_64
 CFLAGS = -m64 -fno-pic -fno-stack-protector -ffreestanding -nostdlib -O2 \
          -Wall -Wextra -Werror -g
 ASFLAGS = -f elf64 -g -F dwarf
-LDFLAGS = -m elf_x86_64 -T build/kernel64.ld -nostdlib
+LDFLAGS = -m elf_x86_64 -T kernel64.ld -nostdlib
 
 # Directories
 BUILD_DIR = build
@@ -54,7 +54,7 @@ $(KERNEL_OBJ): $(KERNEL_SRC) | $(OBJ_DIR)
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
 # Link kernel
-$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) build/kernel64.ld | $(BIN_DIR)
+$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) kernel64.ld | $(BIN_DIR)
 	@echo "[LD]   Linking kernel..."
 	@$(LD) $(LDFLAGS) -o $@ $(BOOT_OBJ) $(KERNEL_OBJ)
 	@echo "[OBJCOPY] Creating ELF image..."
@@ -76,17 +76,15 @@ iso: $(KERNEL_BIN)
 
 # Run in QEMU with UEFI firmware
 run: $(KERNEL_BIN)
-	@echo "[QEMU] Launching kernel (3 seconds to build)..."
-	@sleep 3
+	@echo "[QEMU] Launching kernel..."
 	@$(QEMU) \
 		-m 2G \
 		-smp 3 \
-		-bios /usr/share/OVMF/OVMF_CODE.fd \
-		-hda $(KERNEL_BIN) \
-		-display gtk \
+		-kernel $(KERNEL_BIN) \
+		-append "console=ttyS0" \
 		-serial stdio \
-		-enable-kvm -accel tcg \
-		-d int -D debug.log
+		-display none \
+		2>&1 | head -100 || true
 
 # Debug with GDB
 debug: $(KERNEL_BIN)

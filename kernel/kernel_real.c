@@ -11,9 +11,6 @@
  * 0x80000000 - User space high
  */
 
-#include <stdint.h>
-#include <stddef.h>
-
 /* ============================================================================
  * Type Definitions
  * ============================================================================ */
@@ -419,11 +416,16 @@ void process_schedule(void) {
 void timer_init(void) {
     /* Setup PIT (Programmable Interval Timer) */
     uint16_t divisor = 1193182 / PIT_FREQUENCY;
+    uint8_t low_byte = (uint8_t)divisor;
+    uint8_t high_byte = (uint8_t)(divisor >> 8);
     
     /* Send divisor to PIT channel 0 */
-    asm volatile("outb $0x36, $0x43");  /* ICW4 */
-    asm volatile("outb %%al, $0x40" :: "a"((uint8_t)divisor));
-    asm volatile("outb %%al, $0x40" :: "a"((uint8_t)(divisor >> 8)));
+    /* Configure PIT command port (0x43) */
+    asm volatile("mov $0x36, %%al; outb %%al, $0x43" : : : "al");  
+    /* Send divisor low byte to port 0x40 */
+    asm volatile("mov %0, %%al; outb %%al, $0x40" : : "r"(low_byte) : "al");
+    /* Send divisor high byte to port 0x40 */
+    asm volatile("mov %0, %%al; outb %%al, $0x40" : : "r"(high_byte) : "al");
 }
 
 void idt_init(void) {
