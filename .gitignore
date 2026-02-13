@@ -1,0 +1,35 @@
+# Build artifacts
+/build/
+*.o
+*.a
+*.so
+*.bin
+*.elf
+*.img
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug files
+*.dSYM/
+*.su
+*.gch
+*.pdb
+
+# Temporary files
+.tmp/
+*.tmp
+*.bak
+.gitkeep
+
+# OS-specific
+Thumbs.db
+.directory
+
+# Skip any local configs
+config.local.mk
