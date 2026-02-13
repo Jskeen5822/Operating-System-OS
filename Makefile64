@@ -1,0 +1,151 @@
+# Makefile for Operating System OS - Real Bootable Kernel
+# Builds a real UEFI-bootable operating system
+
+.PHONY: all clean build run debug iso
+
+# Compiler and tools
+CC = gcc
+LD = ld
+NASM = nasm
+OBJCOPY = objcopy
+QEMU = qemu-system-x86_64
+
+# Flags
+CFLAGS = -m64 -fno-pic -fno-stack-protector -ffreestanding -nostdlib -O2 \
+         -Wall -Wextra -Werror -g
+ASFLAGS = -f elf64 -g -F dwarf
+LDFLAGS = -m elf_x86_64 -T build/kernel64.ld -nostdlib
+
+# Directories
+BUILD_DIR = build
+BIN_DIR = $(BUILD_DIR)/bin
+OBJ_DIR = $(BUILD_DIR)/obj
+
+# Source files
+BOOT_SRC = bootloader/uefi_boot.asm
+KERNEL_SRC = kernel/kernel_real.c
+
+# Object files
+BOOT_OBJ = $(OBJ_DIR)/uefi_boot.o
+KERNEL_OBJ = $(OBJ_DIR)/kernel_real.o
+
+# Output files
+KERNEL_BIN = $(BIN_DIR)/os_kernel.elf
+KERNEL_ISO = $(BIN_DIR)/os.iso
+
+# Default target
+all: $(KERNEL_BIN)
+
+# Create directories
+$(OBJ_DIR):
+	@mkdir -p $(OBJ_DIR)
+
+$(BIN_DIR):
+	@mkdir -p $(BIN_DIR)
+
+# Compile bootloader
+$(BOOT_OBJ): $(BOOT_SRC) | $(OBJ_DIR)
+	@echo "[NASM] Compiling bootloader..."
+	@$(NASM) $(ASFLAGS) -o $@ $<
+
+# Compile kernel
+$(KERNEL_OBJ): $(KERNEL_SRC) | $(OBJ_DIR)
+	@echo "[CC]   Compiling kernel..."
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# Link kernel
+$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) build/kernel64.ld | $(BIN_DIR)
+	@echo "[LD]   Linking kernel..."
+	@$(LD) $(LDFLAGS) -o $@ $(BOOT_OBJ) $(KERNEL_OBJ)
+	@echo "[OBJCOPY] Creating ELF image..."
+	@$(OBJCOPY) -O elf64-x86-64 $@ $@.tmp && mv $@.tmp $@
+	@ls -lh $@
+	@echo "✓ Kernel built successfully: $@"
+
+# Build ISO image for UEFI booting
+iso: $(KERNEL_BIN)
+	@echo "[ISO]  Creating bootable ISO image..."
+	@mkdir -p $(BUILD_DIR)/iso/EFI/BOOT
+	@cp $(KERNEL_BIN) $(BUILD_DIR)/iso/EFI/BOOT/BOOTX64.EFI
+	@xorriso -as mkisofs -R -f -J -V "OperatingSystemOS" \
+		-efi-boot EFI/BOOT/BOOTX64.EFI \
+		-no-emul-boot -isohybrid-mbr /usr/lib/syslinux/mbr/isohdpfx.bin \
+		-output $(KERNEL_ISO) $(BUILD_DIR)/iso
+	@ls -lh $(KERNEL_ISO)
+	@echo "✓ ISO created: $(KERNEL_ISO)"
+
+# Run in QEMU with UEFI firmware
+run: $(KERNEL_BIN)
+	@echo "[QEMU] Launching kernel (3 seconds to build)..."
+	@sleep 3
+	@$(QEMU) \
+		-m 2G \
+		-smp 3 \
+		-bios /usr/share/OVMF/OVMF_CODE.fd \
+		-hda $(KERNEL_BIN) \
+		-display gtk \
+		-serial stdio \
+		-enable-kvm -accel tcg \
+		-d int -D debug.log
+
+# Debug with GDB
+debug: $(KERNEL_BIN)
+	@echo "[QEMU] Launching with debug symbols..."
+	@$(QEMU) \
+		-m 2G \
+		-smp 3 \
+		-bios /usr/share/OVMF/OVMF_CODE.fd \
+		-hda $(KERNEL_BIN) \
+		-s -S \
+		-display none \
+		-serial stdio &
+	@sleep 2
+	@gdb -ex "target remote localhost:1234" -ex "file $(KERNEL_BIN)" -tui
+
+# Quick test - compile and show build info
+test: $(KERNEL_BIN)
+	@echo ""
+	@echo "========================================"
+	@echo "  Operating System OS - Build Info"
+	@echo "========================================"
+	@echo "Kernel binary: $(KERNEL_BIN)"
+	@echo "Size: $$(stat -f%z $(KERNEL_BIN) 2>/dev/null || stat -c%s $(KERNEL_BIN))"
+	@readelf -h $(KERNEL_BIN) 2>/dev/null || objdump -f $(KERNEL_BIN)
+	@echo ""
+	@echo "To run in QEMU: make run"
+	@echo "========================================"
+
+# Clean build artifacts
+clean:
+	@echo "[CLEAN] Removing build artifacts..."
+	@rm -rf $(BUILD_DIR)
+	@rm -f debug.log
+	@echo "✓ Clean complete"
+
+# Show help
+help:
+	@echo "Operating System OS - Build System"
+	@echo ""
+	@echo "Targets:"
+	@echo "  make              - Build kernel binary"
+	@echo "  make iso          - Create bootable ISO image"
+	@echo "  make run          - Build and run in QEMU"
+	@echo "  make debug        - Build and debug with GDB"
+	@echo "  make test         - Show build information"
+	@echo "  make clean        - Remove build artifacts"
+	@echo "  make help         - Show this help"
+	@echo ""
+	@echo "Requirements:"
+	@echo "  - GCC (64-bit, bare metal)"
+	@echo "  - NASM assembler"
+	@echo "  - GNU binutils (ld, objcopy, readelf)"
+	@echo "  - QEMU with x86-64 support"
+	@echo "  - OVMF firmware for UEFI (optional)"
+	@echo ""
+	@echo "Setup (Ubuntu/Debian):"
+	@echo "  sudo apt-get install build-essential nasm qemu-system-x86"
+	@echo "  sudo apt-get install ovmf  # For UEFI firmware"
+	@echo ""
+
+# Default if no target
+.DEFAULT_GOAL := help
