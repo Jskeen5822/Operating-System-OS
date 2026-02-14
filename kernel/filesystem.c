@@ -1,7 +1,7 @@
 #include "../include/types.h"
 #include "../include/defs.h"
 
-/* File system implementation */
+
 
 #define FILE_BLOCK_SIZE 4096
 #define MAX_INODES 512
@@ -20,24 +20,24 @@ static uint8_t block_bitmap[MAX_BLOCKS / 8] = {0};
 static uint8_t inode_bitmap[MAX_INODES / 8] = {0};
 
 void filesystem_init(void) {
-    /* Initialize superblock */
+    
     superblock.total_blocks = MAX_BLOCKS;
     superblock.free_blocks = MAX_BLOCKS - 1;
     superblock.total_inodes = MAX_INODES;
     superblock.free_inodes = MAX_INODES - 1;
     superblock.block_size = FILE_BLOCK_SIZE;
     
-    /* Initialize root directory inode */
+    
     inode_table[0].inode_number = 0;
-    inode_table[0].file_type = 1;  /* Directory */
+    inode_table[0].file_type = 1;  
     inode_table[0].size = 0;
     inode_table[0].permissions = 0755;
     inode_table[0].hard_link_count = 1;
-    inode_bitmap[0] |= 1;  /* Mark root as allocated */
+    inode_bitmap[0] |= 1;  
 }
 
 uint32_t filesystem_create_file(const char *filename, uint32_t permissions) {
-    /* Find free inode */
+    
     uint32_t inode_num = 0;
     for (uint32_t i = 1; i < MAX_INODES; i++) {
         uint32_t byte_idx = i / 8;
@@ -51,12 +51,12 @@ uint32_t filesystem_create_file(const char *filename, uint32_t permissions) {
     }
     
     if (inode_num == 0) {
-        return -1;  /* No free inodes */
+        return -1;  
     }
     
-    /* Initialize inode */
+    
     inode_table[inode_num].inode_number = inode_num;
-    inode_table[inode_num].file_type = 0;  /* Regular file */
+    inode_table[inode_num].file_type = 0;  
     inode_table[inode_num].size = 0;
     inode_table[inode_num].permissions = permissions;
     inode_table[inode_num].hard_link_count = 1;
@@ -65,7 +65,7 @@ uint32_t filesystem_create_file(const char *filename, uint32_t permissions) {
 }
 
 uint32_t filesystem_create_directory(const char *dirname, uint32_t permissions) {
-    /* Find free inode */
+    
     uint32_t inode_num = 0;
     for (uint32_t i = 1; i < MAX_INODES; i++) {
         uint32_t byte_idx = i / 8;
@@ -79,15 +79,15 @@ uint32_t filesystem_create_directory(const char *dirname, uint32_t permissions) 
     }
     
     if (inode_num == 0) {
-        return -1;  /* No free inodes */
+        return -1;  
     }
     
-    /* Initialize directory inode */
+    
     inode_table[inode_num].inode_number = inode_num;
-    inode_table[inode_num].file_type = 1;  /* Directory */
+    inode_table[inode_num].file_type = 1;  
     inode_table[inode_num].size = 0;
     inode_table[inode_num].permissions = permissions;
-    inode_table[inode_num].hard_link_count = 2;  /* . and .. */
+    inode_table[inode_num].hard_link_count = 2;  
     
     return inode_num;
 }
@@ -104,7 +104,7 @@ uint32_t filesystem_allocate_block(void) {
         }
     }
     
-    return -1;  /* No free blocks */
+    return -1;  
 }
 
 void filesystem_free_block(uint32_t block_num) {
@@ -130,11 +130,11 @@ uint32_t filesystem_list_directory(uint32_t inode_num) {
     }
     
     Inode *dir = &inode_table[inode_num];
-    if (dir->file_type != 1) {  /* Not a directory */
+    if (dir->file_type != 1) {  
         return -1;
     }
     
-    return dir->size;  /* Number of entries */
+    return dir->size;  
 }
 
 uint32_t filesystem_get_file_info(uint32_t inode_num, Inode *out) {

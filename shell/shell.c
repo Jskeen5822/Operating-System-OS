@@ -1,19 +1,19 @@
 #include "shell.h"
 #include "../kernel/kernel.h"
 
-/* Shell command buffer */
+
 static char command_buffer[256];
 static char *command_argv[32];
 static uint32_t command_argc;
 
-/* Shell command table */
+
 typedef struct {
     const char *name;
     void (*handler)(uint32_t argc, char *argv[]);
     const char *description;
 } ShellCommand;
 
-/* Forward declarations */
+
 static void cmd_help(uint32_t argc, char *argv[]);
 static void cmd_ps(uint32_t argc, char *argv[]);
 static void cmd_exit(uint32_t argc, char *argv[]);
@@ -27,7 +27,7 @@ static void cmd_mkdir(uint32_t argc, char *argv[]);
 static void cmd_touch(uint32_t argc, char *argv[]);
 static void cmd_exec(uint32_t argc, char *argv[]);
 
-/* Command table */
+
 static ShellCommand commands[] = {
     {"help", cmd_help, "Display available commands"},
     {"ps", cmd_ps, "List running processes"},
@@ -67,11 +67,11 @@ static void shell_read_command(void) {
     command_argc = 0;
     memset(command_buffer, 0, sizeof(command_buffer));
     
-    /* Read line (simplified - in real implementation would use keyboard input) */
-    /* For now, just populate a default command for demo */
+    
+    
     strcpy(command_buffer, "help");
     
-    /* Parse command line */
+    
     shell_parse_command();
 }
 
@@ -79,15 +79,15 @@ static void shell_parse_command(void) {
     command_argc = 0;
     char *token = command_buffer;
     
-    /* Simple tokenization */
+    
     while (*token && command_argc < 32) {
-        /* Skip whitespace */
+        
         while (*token && *token == ' ') token++;
         
         if (*token) {
             command_argv[command_argc++] = token;
             
-            /* Skip to next whitespace */
+            
             while (*token && *token != ' ') token++;
             
             if (*token) {
@@ -100,7 +100,7 @@ static void shell_parse_command(void) {
 static void shell_execute_command(void) {
     const char *cmd_name = command_argv[0];
     
-    /* Search command table */
+    
     for (uint32_t i = 0; commands[i].name != NULL; i++) {
         if (strcmp(commands[i].name, cmd_name) == 0) {
             commands[i].handler(command_argc, command_argv);
@@ -111,7 +111,7 @@ static void shell_execute_command(void) {
     printf("Unknown command: %s\n", cmd_name);
 }
 
-/* Command implementations */
+
 static void cmd_help(uint32_t argc, char *argv[]) {
     printf("\nAvailable Commands:\n");
     printf("------------------\n");
@@ -156,7 +156,7 @@ static void cmd_exit(uint32_t argc, char *argv[]) {
 }
 
 static void cmd_clear(uint32_t argc, char *argv[]) {
-    /* Clear screen (would send escape codes in real implementation) */
+    
     printf("\n\n\n\n\n\n\n\n\n\n");
 }
 
@@ -184,7 +184,7 @@ static void cmd_pwd(uint32_t argc, char *argv[]) {
 
 static void cmd_uptime(uint32_t argc, char *argv[]) {
     extern uint64_t system_ticks;
-    uint64_t seconds = system_ticks / 100;  /* Assuming 100 ticks per second */
+    uint64_t seconds = system_ticks / 100;  
     uint64_t minutes = seconds / 60;
     uint64_t hours = minutes / 60;
     

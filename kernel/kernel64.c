@@ -1,70 +1,58 @@
-/*
- * Modern x86-64 Kernel - Operating System OS
- * 64-bit x86-64 architecture targeting modern hardware
- * UEFI bootloader compatible
- * 
- * Supports: VirtualBox, KVM, QEMU (modern)
- * Max: 3 CPU cores, 8GB RAM
- * Modern long mode (64-bit) paging
- */
+
 
 #include "../include/types64.h"
 #include "../include/kernel64.h"
 
-/* Global kernel state */
+
 BootInfo *g_boot_info = NULL;
 ProcessTable g_process_table = {0};
 MemoryManager g_memory = {0};
 FileSystem g_filesystem = {0};
 
-/* CPU and resource tracking */
+
 volatile uint64_t g_ticks = 0;
 volatile uint32_t g_cpu_count = 0;
 volatile uint64_t g_total_memory = 0;
 
-/* Domain management (Qubes-inspired) */
+
 Domain g_domains[MAX_DOMAINS] = {0};
 uint32_t g_domain_count = 0;
 
-/* ============================================================================
- * Kernel Entry Point - Called by UEFI bootloader
- * ============================================================================ */
+
 void kernel_main(BootInfo *boot_info) {
-    /* Save boot information */
+    
     g_boot_info = boot_info;
     g_total_memory = boot_info->total_memory;
     g_cpu_count = boot_info->cpu_count > 3 ? 3 : boot_info->cpu_count;
     
-    /* Initialize kernel subsystems in order */
+    
     kernel_initialize();
     memory_initialize();
     filesystem_initialize();
     process_initialize();
     domain_initialize();
     
-    /* Setup interrupts and handlers */
+    
     setup_interrupts();
     setup_apic();
     
-    /* Boot complete - enter scheduler */
+    
     kernel_ready();
 }
 
-/* ============================================================================
- * Kernel Initialization
- * ============================================================================ */
+
 void kernel_initialize(void) {
-    /* Setup GDT, IDT, CPU state */
+    
     setup_gdt();
     setup_idt();
     setup_paging();
     
-    /* Initialize kernel memory pools */
+    
     g_memory.total_pages = g_total_memory / PAGE_SIZE;
     g_memory.allocated_pages = 0;
     g_memory.page_tables_allocated = 0;
     
-    /* Initialize process table */
+    
     g_process_table.count = 0;
     for (int i = 0; i < MAX_PROCESSES; i++) {
         g_process_table.processes[i].pid = 0;
@@ -72,11 +60,9 @@ void kernel_initialize(void) {
     }
 }
 
-/* ============================================================================
- * Memory Management - 64-bit paging
- * ============================================================================ */
+
 void memory_initialize(void) {
-    /* Initialize page frame allocator */
+    
     g_memory.page_bitmap_size = g_memory.total_pages / 8;
     g_memory.allocated_pages = 0;
 }
@@ -85,7 +71,7 @@ uint64_t memory_allocate(uint64_t size) {
     uint64_t pages_needed = (size + PAGE_SIZE - 1) / PAGE_SIZE;
     
     if (g_memory.allocated_pages + pages_needed > g_memory.total_pages) {
-        return 0; /* Out of memory */
+        return 0; 
     }
     
     uint64_t address = g_memory.allocated_pages * PAGE_SIZE + KERNEL_VIRT_BASE;
@@ -95,8 +81,8 @@ uint64_t memory_allocate(uint64_t size) {
 }
 
 void memory_free(uint64_t address, uint64_t size) {
-    /* Simplified free - in real kernel would use bitmap for reuse */
-    /* Placeholder for true allocation tracking */
+    
+    
 }
 
 uint64_t memory_get_total_memory(void) {
@@ -111,13 +97,11 @@ uint64_t memory_get_free(void) {
     return (g_memory.total_pages - g_memory.allocated_pages) * PAGE_SIZE;
 }
 
-/* ============================================================================
- * Process Management
- * ============================================================================ */
+
 void process_initialize(void) {
     g_process_table.count = 1;
     
-    /* Create idle process (PID 1) */
+    
     Process* idle = &g_process_table.processes[0];
     idle->pid = 1;
     idle->state = PROCESS_RUNNING;
@@ -127,7 +111,7 @@ void process_initialize(void) {
     idle->memory_pages = 4;
     idle->cpu_time = 0;
     string_copy("idle", idle->name, 64);
-    idle->domain = &g_domains[0]; /* System domain */
+    idle->domain = &g_domains[0]; 
 }
 
 uint32_t process_create(const char *name, uint32_t domain_id) {
@@ -163,19 +147,19 @@ Process* process_get(uint32_t pid) {
 }
 
 void process_schedule(void) {
-    /* Round-robin scheduling across processes */
+    
     static uint32_t current_index = 0;
     
     if (g_process_table.count == 0) return;
     
-    /* Move current process to ready */
+    
     Process *current = &g_process_table.processes[current_index];
     if (current->state == PROCESS_RUNNING) {
         current->state = PROCESS_READY;
         current->cpu_time++;
     }
     
-    /* Find next ready process */
+    
     uint32_t next_index = (current_index + 1) % g_process_table.count;
     for (uint32_t i = 0; i < g_process_table.count; i++) {
         uint32_t idx = (current_index + 1 + i) % g_process_table.count;
@@ -186,20 +170,18 @@ void process_schedule(void) {
         }
     }
     
-    /* Switch to next process */
+    
     Process *next = &g_process_table.processes[next_index];
     next->state = PROCESS_RUNNING;
     current_index = next_index;
 }
 
-/* ============================================================================
- * File System - Unix-like inode structure
- * ============================================================================ */
+
 void filesystem_initialize(void) {
     g_filesystem.inode_count = 0;
     g_filesystem.root = NULL;
     
-    /* Create root inode */
+    
     Inode *root = filesystem_create_inode("/", INODE_DIR);
     g_filesystem.root = root;
 }
@@ -222,7 +204,7 @@ Inode* filesystem_create_inode(const char *name, uint32_t type) {
 }
 
 Inode* filesystem_find_by_path(const char *path) {
-    /* Simplified path lookup - real kernel would traverse tree */
+    
     if (string_compare(path, "/") == 0) {
         return g_filesystem.root;
     }
@@ -236,29 +218,27 @@ Inode* filesystem_find_by_path(const char *path) {
     return NULL;
 }
 
-/* ============================================================================
- * Domain Management (Qubes-inspired compartmentalization)
- * ============================================================================ */
+
 void domain_initialize(void) {
-    /* Create system domain (sys) */
+    
     Domain *sys_domain = &g_domains[0];
     sys_domain->domain_id = 0;
-    sys_domain->color = 0xFF0000; /* Red */
+    sys_domain->color = 0xFF0000; 
     sys_domain->type = DOMAIN_SYSTEM;
     string_copy("sys", sys_domain->name, 64);
     sys_domain->process_count = 1;
-    sys_domain->memory_limit = g_total_memory / 2; /* Half RAM for system */
+    sys_domain->memory_limit = g_total_memory / 2; 
     
     g_domain_count = 1;
     
-    /* Create user domain */
+    
     Domain *user_domain = &g_domains[1];
     user_domain->domain_id = 1;
-    user_domain->color = 0x00AA00; /* Green */
+    user_domain->color = 0x00AA00; 
     user_domain->type = DOMAIN_USER;
     string_copy("personal", user_domain->name, 64);
     user_domain->process_count = 0;
-    user_domain->memory_limit = g_total_memory / 4; /* Quarter RAM for user */
+    user_domain->memory_limit = g_total_memory / 4; 
     
     g_domain_count = 2;
 }
@@ -288,9 +268,7 @@ Domain* domain_get(uint32_t domain_id) {
     return &g_domains[domain_id];
 }
 
-/* ============================================================================
- * Utility Functions
- * ============================================================================ */
+
 void string_copy(const char *src, char *dst, uint32_t max_len) {
     for (uint32_t i = 0; i < max_len - 1 && src[i] != '\0'; i++) {
         dst[i] = src[i];
@@ -329,31 +307,29 @@ void memory_copy(const void *src, void *dst, uint64_t size) {
     }
 }
 
-/* ============================================================================
- * Interrupt and APIC Setup Stubs
- * ============================================================================ */
+
 void setup_gdt(void) {
-    /* Setup Global Descriptor Table for 64-bit mode */
+    
 }
 
 void setup_idt(void) {
-    /* Setup Interrupt Descriptor Table */
+    
 }
 
 void setup_paging(void) {
-    /* Setup 64-bit paging (long mode) with 4-level page tables */
+    
 }
 
 void setup_interrupts(void) {
-    /* Setup interrupt handlers */
+    
 }
 
 void setup_apic(void) {
-    /* Setup local APIC for multi-core support (up to 3 cores) */
+    
 }
 
 void kernel_ready(void) {
-    /* Kernel ready - enter main loop */
+    
     while (1) {
         process_schedule();
         g_ticks++;

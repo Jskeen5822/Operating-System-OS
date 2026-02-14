@@ -1,32 +1,32 @@
 #include "kernel.h"
 
-/* Global variables */
+
 ProcessControlBlock process_table[MAX_PROCESSES] = {0};
 ProcessControlBlock *current_process = NULL;
 uint32_t process_count = 0;
 uint64_t system_ticks = 0;
 uint32_t next_pid = 1;
 
-/* Memory and file system globals */
+
 uint32_t *page_directory = NULL;
 uint8_t memory_bitmap[MAX_PAGES / 8] = {0};
 FileSystem fs = {0};
 
-/* Scheduling globals */
+
 uint32_t schedule_interval = 10;
 
 void kernel_main(void) {
-    /* Initialize kernel subsystems */
+    
     kernel_init();
     
     printf("Operating System OS initialized successfully!\n");
     printf("Processes: %d/%d\n", process_count, MAX_PROCESSES);
     printf("Ready for user input.\n");
     
-    /* Start shell */
+    
     shell_start();
     
-    /* Halt if shell returns */
+    
     panic("Shell terminated unexpectedly");
 }
 
@@ -42,21 +42,21 @@ void kernel_init(void) {
     setup_filesystem();
     printf("File system initialized.\n");
     
-    /* Create idle process */
+    
     process_create("idle", 0);
 }
 
 void setup_interrupts(void) {
-    /* Setup interrupt handlers */
-    /* In real implementation, would setup IDT and handler stubs */
+    
+    
     system_ticks = 0;
 }
 
 void setup_memory(void) {
-    /* Initialize memory bitmap and page tables */
+    
     memset(memory_bitmap, 0, sizeof(memory_bitmap));
     
-    /* First 256 pages reserved for kernel */
+    
     for (uint32_t i = 0; i < 256; i++) {
         uint32_t byte_idx = i / 8;
         uint32_t bit_idx = i % 8;
@@ -65,21 +65,21 @@ void setup_memory(void) {
 }
 
 void setup_filesystem(void) {
-    /* Initialize file system structures */
+    
     memset(&fs, 0, sizeof(FileSystem));
     
     fs.total_blocks = MAX_BLOCKS;
-    fs.free_blocks = MAX_BLOCKS - 1;  /* Root inode takes one block */
+    fs.free_blocks = MAX_BLOCKS - 1;  
     
-    /* Initialize root directory inode */
+    
     fs.inode_table[0].inode_number = 0;
-    fs.inode_table[0].file_type = 1;  /* Directory */
+    fs.inode_table[0].file_type = 1;  
     fs.inode_table[0].size = 0;
     fs.inode_table[0].permissions = 0755;
     fs.inode_table[0].hard_link_count = 1;
 }
 
-/* Process Management */
+
 void process_create(const char *name, uint32_t priority) {
     if (process_count >= MAX_PROCESSES) {
         printf("Error: Maximum process limit reached\n");
@@ -103,12 +103,12 @@ void process_create(const char *name, uint32_t priority) {
 }
 
 void process_schedule(void) {
-    /* Simple round-robin scheduling */
+    
     if (process_count == 0) return;
     
     static uint32_t current_index = 0;
     
-    /* Find next ready process */
+    
     uint32_t attempts = 0;
     while (attempts < process_count) {
         current_index = (current_index + 1) % process_count;
@@ -136,9 +136,9 @@ void interrupt_handler(uint32_t interrupt_number) {
     }
 }
 
-/* Memory Management - delegated to memory.c */
 
-/* Utility Functions */
+
+
 void memset(void *dest, uint8_t value, size_t count) {
     uint8_t *d = (uint8_t *)dest;
     for (size_t i = 0; i < count; i++) {
@@ -192,11 +192,11 @@ char *strncpy(char *dest, const char *src, size_t n) {
 }
 
 void printf(const char *format, ...) {
-    /* Simplified printf - just output the format string for now */
+    
     const char *p = format;
     while (*p) {
         if (*p == '\\' && *(p+1) == 'n') {
-            /* Simple newline handling */
+            
             p += 2;
         } else {
             p++;
@@ -207,6 +207,6 @@ void printf(const char *format, ...) {
 void panic(const char *message) {
     printf("KERNEL PANIC: %s\n", message);
     while (1) {
-        /* Halt CPU */
+        
     }
 }

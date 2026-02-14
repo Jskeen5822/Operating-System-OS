@@ -1,21 +1,21 @@
 #!/bin/bash
 
-# Operating System OS - Universal Launcher Script
-# Usage: ./run.sh [desktop|simulator|build|clean]
+
+
 
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
-# Colors for output
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Function to print colored output
+
 print_info() {
     echo -e "${BLUE}ℹ️  $1${NC}"
 }
@@ -32,7 +32,7 @@ print_error() {
     echo -e "${RED}✗ $1${NC}"
 }
 
-# Function to show help
+
 show_help() {
     cat << EOF
 ${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}
@@ -50,10 +50,10 @@ ${YELLOW}COMMANDS:${NC}
   ${GREEN}help${NC}         Show this help message
 
 ${YELLOW}EXAMPLES:${NC}
-  ./run.sh desktop       # Launch desktop environment
-  ./run.sh simulator     # Launch CLI simulator
-  ./run.sh build         # Build native kernel
-  ./run.sh clean         # Clean build files
+  ./run.sh desktop
+  ./run.sh simulator
+  ./run.sh build
+  ./run.sh clean
 
 ${YELLOW}DEFAULT:${NC}
   If no command is specified, launches the desktop environment.
@@ -62,11 +62,11 @@ ${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━�
 EOF
 }
 
-# Function to launch desktop
+
 launch_desktop() {
     print_info "Launching graphical desktop environment..."
     
-    # Check if Tkinter is available
+
     if ! python3 -c "import tkinter" 2>/dev/null; then
         print_error "Tkinter not found"
         print_info "Install with:"
@@ -94,7 +94,7 @@ launch_desktop() {
     python3 desktop.py
 }
 
-# Function to launch simulator
+
 launch_simulator() {
     print_info "Launching CLI simulator..."
     
@@ -110,7 +110,7 @@ launch_simulator() {
     python3 simulator.py
 }
 
-# Function to build kernel
+
 build_kernel() {
     print_info "Building native kernel..."
     
@@ -119,7 +119,7 @@ build_kernel() {
         exit 1
     fi
     
-    # Check for required tools
+
     if ! command -v gcc &> /dev/null; then
         print_error "GCC not found"
         print_info "Install with: sudo apt-get install build-essential"
@@ -145,7 +145,7 @@ build_kernel() {
     fi
 }
 
-# Function to clean build
+
 clean_build() {
     print_info "Cleaning build artifacts..."
     
@@ -158,7 +158,7 @@ clean_build() {
     print_success "Build cleaned successfully!"
 }
 
-# Main script logic
+
 COMMAND="${1:-desktop}"
 
 case "$COMMAND" in

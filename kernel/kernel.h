@@ -4,22 +4,22 @@
 #include "../include/types.h"
 #include "../include/defs.h"
 
-/* Kernel initialization */
+
 void kernel_init(void);
 void setup_interrupts(void);
 void setup_memory(void);
 void setup_filesystem(void);
 
-/* Process management - declared in kernel.c */
+
 extern ProcessControlBlock *current_process;
 extern ProcessControlBlock process_table[MAX_PROCESSES];
 extern uint32_t process_count;
 
-/* Memory management - declared in kernel.c */
+
 extern uint32_t *page_directory;
 extern uint8_t memory_bitmap[MAX_PAGES / 8];
 
-/* File system - declared in kernel.c */
+
 typedef struct {
     Inode inode_table[MAX_FILES];
     uint8_t block_bitmap[MAX_BLOCKS / 8];
@@ -29,11 +29,11 @@ typedef struct {
 
 extern FileSystem fs;
 
-/* Timer and scheduling - declared in kernel.c */
+
 extern uint64_t system_ticks;
 extern uint32_t schedule_interval;
 
-/* System calls */
+
 uint32_t sys_fork(void);
 uint32_t sys_exit(int status);
 uint32_t sys_wait(uint32_t pid);
@@ -43,7 +43,7 @@ uint32_t sys_close(uint32_t fd);
 uint32_t sys_read(uint32_t fd, void *buffer, uint32_t count);
 uint32_t sys_write(uint32_t fd, const void *buffer, uint32_t count);
 
-/* Utility functions */
+
 void panic(const char *message);
 void printf(const char *format, ...);
 void memset(void *dest, uint8_t value, size_t count);

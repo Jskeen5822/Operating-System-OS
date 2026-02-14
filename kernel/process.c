@@ -2,7 +2,7 @@
 #include "../include/defs.h"
 #include "../kernel/kernel.h"
 
-/* Process management implementation */
+
 
 typedef struct {
     uint32_t pid;
@@ -27,7 +27,7 @@ uint32_t process_fork(void) {
 uint32_t process_wait(uint32_t pid) {
     for (uint32_t i = 0; i < descriptor_count; i++) {
         if (process_descriptors[i].pid == pid) {
-            /* Check process state and wait */
+            
             return 0;
         }
     }

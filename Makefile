@@ -1,4 +1,4 @@
-# Operating System OS - Build System
+
 
 CC = gcc
 AS = nasm
@@ -7,11 +7,11 @@ CFLAGS = -m32 -ffreestanding -nostdlib -fno-pie -fno-stack-protector -O2 -Wall
 ASFLAGS = -f elf32
 LDFLAGS = -m elf_i386 -Ttext 0x1000 --entry=kernel_main
 
-# Output directories
+
 BUILD_DIR = build
 BIN_DIR = $(BUILD_DIR)/bin
 
-# Source files
+
 KERNEL_SOURCES = kernel/kernel.c kernel/process.c kernel/memory.c kernel/filesystem.c
 KERNEL_OBJECTS = $(KERNEL_SOURCES:%.c=$(BUILD_DIR)/%.o)
 
@@ -23,7 +23,7 @@ ASM_OBJECTS = $(ASM_SOURCES:%.asm=$(BUILD_DIR)/%.o)
 
 ALL_OBJECTS = $(KERNEL_OBJECTS) $(SHELL_OBJECTS) $(ASM_OBJECTS)
 
-# Targets
+
 .PHONY: all clean build run
 
 all: build

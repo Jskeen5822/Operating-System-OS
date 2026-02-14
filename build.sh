@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Quick build and run script for Operating System OS
+
 
 set -e
 

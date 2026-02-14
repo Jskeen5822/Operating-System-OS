@@ -1,7 +1,7 @@
 #include "../include/types.h"
 #include "../include/defs.h"
 
-/* Memory management implementation */
+
 
 #define MEMORY_BLOCKS (MAX_PAGES / 8)
 static uint8_t memory_bitmap[MEMORY_BLOCKS] = {0};
@@ -11,7 +11,7 @@ uint32_t memory_allocate(uint32_t size) {
     uint32_t pages_found = 0;
     uint32_t start_page = 0;
     
-    /* Find contiguous free pages */
+    
     for (uint32_t i = 256; i < MAX_PAGES; i++) {
         uint32_t byte_idx = i / 8;
         uint32_t bit_idx = i % 8;
@@ -23,7 +23,7 @@ uint32_t memory_allocate(uint32_t size) {
             pages_found++;
             
             if (pages_found == pages_needed) {
-                /* Mark pages as allocated */
+                
                 for (uint32_t j = 0; j < pages_needed; j++) {
                     uint32_t page = start_page + j;
                     uint32_t b_idx = page / 8;
@@ -37,7 +37,7 @@ uint32_t memory_allocate(uint32_t size) {
         }
     }
     
-    return 0;  /* Allocation failed */
+    return 0;  
 }
 
 void memory_free(uint32_t address, uint32_t size) {

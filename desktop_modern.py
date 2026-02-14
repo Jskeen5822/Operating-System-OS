@@ -20,16 +20,16 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
-# ============================================================================
-# Domain Types & Colors (Qubes OS inspired)
-# ============================================================================
+                                                                              
+                                           
+                                                                              
 
 class DomainType(Enum):
-    SYSTEM = "#FF0000"      # Red - System (sys)
-    USER = "#00AA00"        # Green - Personal/User apps
-    NETWORK = "#0066FF"     # Blue - Network VMs
-    STORAGE = "#FFAA00"     # Orange - USB/Storage
-    WORK = "#8040FF"        # Purple - Work domain
+    SYSTEM = "#FF0000"                          
+    USER = "#00AA00"                                    
+    NETWORK = "#0066FF"                         
+    STORAGE = "#FFAA00"                           
+    WORK = "#8040FF"                              
 
 @dataclass
 class Domain:
@@ -47,9 +47,9 @@ class Domain:
         if self.processes is None:
             self.processes = []
 
-# ============================================================================
-# OS Simulator Core (64-bit kernel simulation)
-# ============================================================================
+                                                                              
+                                              
+                                                                              
 
 @dataclass
 class Process:
@@ -74,7 +74,7 @@ class OSKernel:
         self.processes: List[Process] = []
         self.next_pid = 1
         
-        # Initialize domains
+                            
         self.domains: Dict[str, Domain] = {
             'sys': Domain('sys', '#FF0000', DomainType.SYSTEM, True, False, False),
             'personal': Domain('personal', '#00AA00', DomainType.USER, True, False, False),
@@ -83,7 +83,7 @@ class OSKernel:
             'usb': Domain('usb', '#FFAA00', DomainType.STORAGE, True, False, True),
         }
         
-        # Create initial system processes
+                                         
         self._create_initial_processes()
         self._start_scheduler()
     
@@ -138,7 +138,7 @@ class OSKernel:
         def scheduler():
             while self.running:
                 self.ticks += 1
-                # Simulate CPU scheduling
+                                         
                 for process in self.processes:
                     if process.state == 'RUNNING':
                         process.cpu_percent = (self.ticks % 100) * 0.01
@@ -151,9 +151,9 @@ class OSKernel:
         """Shutdown the OS"""
         self.running = False
 
-# ============================================================================
-# Modern Desktop UI (Qubes + Ubuntu)
-# ============================================================================
+                                                                              
+                                    
+                                                                              
 
 class ModernDesktop:
     """Modern Qubes OS + Ubuntu styled desktop"""
@@ -168,7 +168,7 @@ class ModernDesktop:
         self.active_domain = None
         self.windows_open = {}
         
-        # Setup UI
+                  
         self._setup_styles()
         self._create_ui()
         self._start_update_thread()
@@ -178,7 +178,7 @@ class ModernDesktop:
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Modern colors
+                       
         bg_dark = "#1E1E1E"
         bg_panel = "#252525"
         fg_text = "#E0E0E0"
@@ -193,23 +193,23 @@ class ModernDesktop:
     
     def _create_ui(self):
         """Create main UI layout"""
-        # Top bar with system info
+                                  
         self._create_top_bar()
         
-        # Main content area with sidebar
+                                        
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Sidebar with domains
+                              
         self._create_sidebar(main_frame)
         
-        # Main content area
+                           
         content_frame = ttk.Frame(main_frame)
         content_frame.pack(fill=tk.BOTH, expand=True, side=tk.RIGHT)
         
         self._create_content_area(content_frame)
         
-        # Bottom taskbar
+                        
         self._create_taskbar()
     
     def _create_top_bar(self):
@@ -218,12 +218,12 @@ class ModernDesktop:
         top_bar.pack(fill=tk.X)
         top_bar.pack_propagate(False)
         
-        # Title
+               
         title = tk.Label(top_bar, text="🖥️  Operating System OS - Modern Desktop",
                         fg="#E0E0E0", bg="#0D0D0D", font=("Ubuntu", 14, "bold"))
         title.pack(side=tk.LEFT, padx=15, pady=10)
         
-        # System info
+                     
         self.time_label = tk.Label(top_bar, text="", fg="#00AA00", 
                                   bg="#0D0D0D", font=("Ubuntu", 9, "mono"))
         self.time_label.pack(side=tk.RIGHT, padx=15, pady=10)
@@ -234,20 +234,20 @@ class ModernDesktop:
         sidebar.pack(fill=tk.Y, side=tk.LEFT, padx=5, pady=5)
         sidebar.pack_propagate(False)
         
-        # Title
+               
         title = tk.Label(sidebar, text="DOMAINS", fg="#E0E0E0", bg="#252525",
                         font=("Ubuntu", 11, "bold"))
         title.pack(pady=10)
         
-        # Domain buttons
+                        
         for domain_name, domain in self.os_kernel.domains.items():
             self._create_domain_button(sidebar, domain_name, domain)
         
-        # Separator
+                   
         sep = tk.Frame(sidebar, bg="#404040", height=1)
         sep.pack(fill=tk.X, pady=10)
         
-        # System info section
+                             
         info_title = tk.Label(sidebar, text="SYSTEM", fg="#E0E0E0", 
                              bg="#252525", font=("Ubuntu", 10, "bold"))
         info_title.pack(pady=5)
@@ -260,11 +260,11 @@ class ModernDesktop:
         btn_frame = tk.Frame(parent, bg="#252525", highlightthickness=0)
         btn_frame.pack(fill=tk.X, padx=5, pady=3)
         
-        # Color indicator
+                         
         color_box = tk.Frame(btn_frame, width=6, bg=domain.color)
         color_box.pack(side=tk.LEFT, fill=tk.Y)
         
-        # Button text
+                     
         btn = tk.Button(btn_frame, text=f"{name.upper()}", 
                        bg="#333333", fg="#E0E0E0", 
                        font=("Ubuntu", 9, "bold"),
@@ -280,26 +280,26 @@ class ModernDesktop:
     
     def _create_content_area(self, parent):
         """Create main content display area"""
-        # Notebook tabs
+                       
         notebook = ttk.Notebook(parent)
         notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Overview tab
+                      
         overview_frame = tk.Frame(notebook, bg="#1E1E1E")
         notebook.add(overview_frame, text="Overview")
         self._create_overview_tab(overview_frame)
         
-        # Processes tab
+                       
         processes_frame = tk.Frame(notebook, bg="#1E1E1E")
         notebook.add(processes_frame, text="Processes")
         self._create_processes_tab(processes_frame)
         
-        # Domains tab
+                     
         domains_frame = tk.Frame(notebook, bg="#1E1E1E")
         notebook.add(domains_frame, text="Domains")
         self._create_domains_tab(domains_frame)
         
-        # Terminal tab
+                      
         terminal_frame = tk.Frame(notebook, bg="#1E1E1E")
         notebook.add(terminal_frame, text="Terminal")
         self._create_terminal_tab(terminal_frame)
@@ -308,7 +308,7 @@ class ModernDesktop:
         """Create overview display"""
         Label = tk.Label
         
-        # System info
+                     
         info_title = Label(parent, text="System Information", 
                           fg="#E0E0E0", bg="#1E1E1E", 
                           font=("Ubuntu", 12, "bold"))
@@ -327,13 +327,13 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
                     font=("Ubuntu Mono", 9), justify=tk.LEFT)
         info.pack(fill=tk.BOTH, padx=10, pady=5)
         
-        # Performance widget
+                            
         perf_title = Label(parent, text="Performance", 
                           fg="#E0E0E0", bg="#1E1E1E",
                           font=("Ubuntu", 12, "bold"))
         perf_title.pack(anchor=tk.W, padx=10, pady=(20, 10))
         
-        # Memory bar
+                    
         mem_frame = tk.Frame(parent, bg="#252525", height=30)
         mem_frame.pack(fill=tk.X, padx=10, pady=5)
         mem_frame.pack_propagate(False)
@@ -343,7 +343,7 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
                          fg="#00AA00", bg="#252525", font=("Ubuntu", 9))
         mem_label.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # Canvas for bar
+                        
         canvas = tk.Canvas(mem_frame, bg="#333333", height=20, highlightthickness=0)
         canvas.pack(fill=tk.X, expand=True, padx=5, pady=5)
         
@@ -352,7 +352,7 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
     
     def _create_processes_tab(self, parent):
         """Create processes list"""
-        # Create treeview
+                         
         columns = ("PID", "Name", "Domain", "State", "Memory (MB)", "CPU %")
         tree = ttk.Treeview(parent, columns=columns, height=20)
         tree.column("#0", width=0, stretch=tk.NO)
@@ -363,12 +363,12 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
         tree.column("Memory (MB)", anchor=tk.E, width=100)
         tree.column("CPU %", anchor=tk.E, width=80)
         
-        # Headings
+                  
         tree.heading("#0", text="", anchor=tk.W)
         for col in columns:
             tree.heading(col, text=col, anchor=tk.W)
         
-        # Add processes
+                       
         for process in self.os_kernel.processes:
             tree.insert("", "end", values=(
                 process.pid,
@@ -381,7 +381,7 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
         
         tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Scrollbar
+                   
         scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=tree.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         tree.configure(yscroll=scrollbar.set)
@@ -401,12 +401,12 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
         card = tk.Frame(parent, bg="#252525")
         card.pack(fill=tk.X, padx=10, pady=5)
         
-        # Header with color
+                           
         header = tk.Frame(card, bg=domain.color, height=4)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
-        # Content
+                 
         content = tk.Label(card, bg="#252525", fg="#E0E0E0", 
                           font=("Ubuntu", 9), justify=tk.LEFT)
         content_text = f"{name.upper()}\nIsolated: {domain.is_isolated}\nNetwork: {domain.has_network}\nUSB: {domain.has_usb}"
@@ -424,7 +424,7 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
     
     def _handle_terminal_command(self, event, terminal):
         """Handle terminal command"""
-        # Get current line
+                          
         current_line = terminal.get("end-2c linestart", "end")
         command = current_line.replace("$ ", "").strip()
         
@@ -460,7 +460,7 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
         taskbar.pack(fill=tk.X)
         taskbar.pack_propagate(False)
         
-        # Left: App buttons
+                           
         left_frame = tk.Frame(taskbar, bg="#0D0D0D")
         left_frame.pack(side=tk.LEFT, padx=10, pady=5)
         
@@ -470,7 +470,7 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
                            font=("Ubuntu", 9), border=0, padx=10, pady=3)
             btn.pack(side=tk.LEFT, padx=2)
         
-        # Right: Status
+                       
         right_frame = tk.Frame(taskbar, bg="#0D0D0D")
         right_frame.pack(side=tk.RIGHT, padx=10, pady=5)
         
@@ -492,21 +492,21 @@ Boot Time:          {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.os_k
     def _update_displays(self):
         """Update all displays"""
         try:
-            # Update time
+                         
             uptime = self.os_kernel.get_uptime_formatted()
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             self.time_label.config(text=f"Uptime: {uptime} | {timestamp}")
             
-            # Update status
+                           
             mem_percent = self.os_kernel.get_memory_percent()
             processes = len(self.os_kernel.processes)
             self.status_label.config(text=f"Processes: {processes} | Memory: {mem_percent:.1f}%")
         except:
             pass
 
-# ============================================================================
-# Application Entry Point
-# ============================================================================
+                                                                              
+                         
+                                                                              
 
 def main():
     root = tk.Tk()

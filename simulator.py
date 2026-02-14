@@ -35,12 +35,12 @@ class OSSimulator:
         self.next_pid = 1
         self.current_process = None
         self.system_ticks = 0
-        self.memory_total_kb = 262144  # 256 MB
-        self.memory_allocated_kb = 256 * 4  # 256 page * 4KB
+        self.memory_total_kb = 262144          
+        self.memory_allocated_kb = 256 * 4                  
         self.max_processes = 256
         self.start_time = time.time()
         
-        # File system
+                     
         self.files = {
             "/": {"type": "directory", "size": 0},
             "/system.bin": {"type": "file", "size": 1024},
@@ -49,7 +49,7 @@ class OSSimulator:
         }
         self.current_directory = "/"
         
-        # Create idle process
+                             
         self.create_process("idle", priority=0)
         self.current_process = self.process_table[0]
         self.current_process.state = ProcessState.RUNNING
@@ -70,7 +70,7 @@ class OSSimulator:
         if not self.process_table:
             return
         
-        # Find next ready process
+                                 
         for p in self.process_table:
             if p.state == ProcessState.READY:
                 if self.current_process:
