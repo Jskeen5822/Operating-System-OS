@@ -13,11 +13,11 @@ import os
 import random
 from datetime import datetime
 
-from PIL.Image import Image
-
-from PIL.Image import Image
-
-from PIL.Image import Image
+try:
+    from PIL import Image, ImageDraw
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 class ProcessState(Enum):
     READY = "READY"
@@ -40,9 +40,18 @@ class OSDesktop:
     def __init__(self, root) -> None:
         self.root: Any = root
         self.root.title("Operating System OS - Desktop")
-        self.root.geometry("1280x800")
         
-                                                            
+        # Get screen dimensions
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Make window fullscreen (compatible approach)
+        self.root.attributes('-fullscreen', True)
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+        
+        # Don't use overrideredirect as it can cause X connection issues
+        # The fullscreen attribute should be sufficient
+        
         self.colors: dict[str, str] = {
             "wallpaper_dark": "#0a1020",
             "wallpaper_light": "#1a2948",
@@ -62,6 +71,7 @@ class OSDesktop:
             "menu_bg": "#0c1424",
             "menu_item": "#111827"
         }
+        self.root.configure(bg=self.colors["wallpaper_dark"])
         self.fonts = {
             "ui": ("Segoe UI", 10),
             "ui_bold": ("Segoe UI", 10, "bold"),
@@ -70,12 +80,23 @@ class OSDesktop:
             "mono": ("Cascadia Code", 10),
         }
         self.root.configure(bg=self.colors["wallpaper_dark"])
+        
+        # Add key bindings for exit (since we removed window decorations)
+        self.root.bind('<Control-q>', lambda e: self.root.quit())
+        self.root.bind('<Alt-F4>', lambda e: self.root.quit())
+        self.root.bind('<Escape>', lambda e: self.root.quit())  # Escape to exit
+        
         self.wallpaper_photo = None
         self.wallpaper_pil = None
         self.wallpaper_render = None
         self.wallpaper_source: str = ""
         self.app_icon_cache = {}
-        self.task_manager_views = []
+        self.task_manager_views = []  # Changed back to list
+        self.cursor_styles = {}
+        self.open_windows = {}  # Track open application windows
+        self.window_z_order = []  # Track z-order for window stacking
+        self._drag_data = {"x": 0, "y": 0, "window": None}  # Drag state
+        self._create_custom_cursors()
         self._load_wallpaper_image()
         
                   
@@ -119,7 +140,7 @@ class OSDesktop:
         except:
             pass
 
-        self.desktop = tk.Frame(self.root, bg=self.colors["wallpaper_dark"])
+        self.desktop = tk.Frame(self.root, bg=self.colors["wallpaper_dark"], cursor=self.cursor_styles['default'])
         self.desktop.pack(fill=tk.BOTH, expand=True)
 
         self.wallpaper_canvas = tk.Canvas(
@@ -183,22 +204,30 @@ class OSDesktop:
         self.wallpaper_canvas.delete("wallpaper")
 
 
-        if self.wallpaper_pil and event.width > 0 and event.height > 0:
+        if self.wallpaper_pil and PIL_AVAILABLE and event.width > 0 and event.height > 0:
             img_w, img_h = self.wallpaper_pil.size
             scale = max(event.width / img_w, event.height / img_h)
             new_size: tuple[int, int] = (max(1, int(img_w * scale)), max(1, int(img_h * scale)))
-            try:
-                from PIL import Image, ImageTk                
-                resized: Image = self.wallpaper_pil.resize(new_size, Image.LANCZOS)
-                                            
-                left: int = max(0, (resized.width - event.width) // 2)
-                top: int = max(0, (resized.height - event.height) // 2)
-                cropped: Image = resized.crop((left, top, left + event.width, top + event.height))
-                self.wallpaper_render = ImageTk.PhotoImage(cropped)
-                self.wallpaper_canvas.create_image(0, 0, image=self.wallpaper_render, anchor="nw", tags="wallpaper")
-                return
-            except Exception:
-                pass
+            if PIL_AVAILABLE:
+                try:
+                    from PIL import Image, ImageTk                
+                    # Use high-quality resampling for better image quality
+                    resized = self.wallpaper_pil.resize(new_size, Image.LANCZOS if hasattr(Image, 'LANCZOS') else Image.BICUBIC)
+                                                
+                    left = max(0, (resized.width - event.width) // 2)
+                    top = max(0, (resized.height - event.height) // 2)
+                    cropped = resized.crop((left, top, left + event.width, top + event.height))
+                    
+                    # Apply slight sharpening to improve clarity
+                    if hasattr(ImageFilter, 'SHARPEN'):
+                        from PIL import ImageFilter
+                        cropped = cropped.filter(ImageFilter.SHARPEN)
+                    
+                    self.wallpaper_render = ImageTk.PhotoImage(cropped)
+                    self.wallpaper_canvas.create_image(0, 0, image=self.wallpaper_render, anchor="nw", tags="wallpaper")
+                    return
+                except Exception:
+                    pass
 
         if self.wallpaper_photo:
             self.wallpaper_canvas.create_image(
@@ -231,6 +260,147 @@ class OSDesktop:
     def _blend(self, start, end, ratio) -> tuple[int, ...]:
         return tuple(int(start[i] + (end[i] - start[i]) * ratio) for i in range(3))
     
+    def _create_custom_cursors(self) -> None:
+        """Set up enhanced cursor styling"""
+        # Use enhanced system cursors with better visual appeal
+        self.cursor_styles = {
+            'default': 'arrow',
+            'clickable': 'hand2',
+            'text': 'xterm',
+            'resize': 'sizing'
+        }
+    
+    def create_app_window(self, app_name, title, width, height):
+        """Create an embedded application window within the desktop"""
+        # Close existing window if it's already open
+        if app_name in self.open_windows:
+            self.close_app_window(app_name)
+            return None
+        
+        # Create main window frame with title bar
+        window_frame = tk.Frame(self.desktop, bg=self.colors["window_header"], relief=tk.RAISED, bd=1)
+        
+        # Title bar
+        title_bar = tk.Frame(window_frame, bg=self.colors["window_header"], height=30, relief=tk.FLAT, bd=0)
+        title_bar.pack(fill=tk.X)
+        title_bar.pack_propagate(False)
+        
+        # Title label
+        title_label = tk.Label(title_bar, text=title, font=self.fonts["ui_bold"], 
+                              fg=self.colors["text_primary"], bg=self.colors["window_header"])
+        title_label.pack(side=tk.LEFT, padx=10, pady=5)
+        
+        # Window controls
+        controls_frame = tk.Frame(title_bar, bg=self.colors["window_header"])
+        controls_frame.pack(side=tk.RIGHT, padx=5)
+        
+        # Minimize button
+        minimize_btn = tk.Button(controls_frame, text="−", font=("Arial", 10, "bold"),
+                                bg="#fbbf24", fg="white", width=3, height=1,
+                                relief=tk.FLAT, bd=0,
+                                command=lambda: self.minimize_app_window(app_name))
+        minimize_btn.pack(side=tk.LEFT, padx=2)
+        
+        # Close button
+        close_btn = tk.Button(controls_frame, text="×", font=("Arial", 10, "bold"),
+                             bg="#ef4444", fg="white", width=3, height=1,
+                             relief=tk.FLAT, bd=0,
+                             command=lambda: self.close_app_window(app_name))
+        close_btn.pack(side=tk.LEFT, padx=2)
+        
+        # Content area
+        content_frame = tk.Frame(window_frame, bg=self.colors["window_bg"], relief=tk.FLAT, bd=0)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Store window reference
+        self.open_windows[app_name] = {
+            'frame': window_frame,
+            'title_bar': title_bar,
+            'content': content_frame,
+            'title_label': title_label,
+            'minimized': False
+        }
+        
+        # Make window draggable with proper reference
+        self._make_window_draggable(window_frame, title_bar, app_name)
+        
+        # Add to z-order
+        self.window_z_order.append(app_name)
+        
+        # Position window (cascade style)
+        x_offset = 50 + (len(self.open_windows) * 30)
+        y_offset = 50 + (len(self.open_windows) * 30)
+        window_frame.place(x=x_offset, y=y_offset, width=width, height=height)
+        
+        return content_frame
+    
+    def _make_window_draggable(self, window_frame, title_bar, app_name):
+        """Make window draggable by title bar with improved performance"""
+        
+        def start_drag(event):
+            # Store initial position and window reference
+            self._drag_data["x"] = event.x_root - window_frame.winfo_x()
+            self._drag_data["y"] = event.y_root - window_frame.winfo_y()
+            self._drag_data["window"] = window_frame
+            
+        def drag(event):
+            if self._drag_data["window"]:
+                # Calculate new position
+                new_x = event.x_root - self._drag_data["x"]
+                new_y = event.y_root - self._drag_data["y"]
+                
+                # Get desktop boundaries
+                desktop_width = self.desktop.winfo_width()
+                desktop_height = self.desktop.winfo_height()
+                window_width = window_frame.winfo_width()
+                window_height = window_frame.winfo_height()
+                
+                # Constrain to desktop bounds
+                new_x = max(0, min(new_x, desktop_width - window_width))
+                new_y = max(0, min(new_y, desktop_height - window_height))
+                
+                # Update position
+                window_frame.place(x=new_x, y=new_y)
+                
+        def stop_drag(event):
+            self._drag_data["window"] = None
+            
+        title_bar.bind("<Button-1>", start_drag)
+        title_bar.bind("<B1-Motion>", drag)
+        title_bar.bind("<ButtonRelease-1>", stop_drag)
+        
+        # Also bind to the title label for better drag coverage
+        if app_name in self.open_windows:
+            title_label = self.open_windows[app_name]['title_label']
+            title_label.bind("<Button-1>", start_drag)
+            title_label.bind("<B1-Motion>", drag)
+            title_label.bind("<ButtonRelease-1>", stop_drag)
+    
+    def bring_to_front(self, app_name):
+        """Bring window to front"""
+        if app_name in self.open_windows:
+            # Remove from current position and add to end
+            if app_name in self.window_z_order:
+                self.window_z_order.remove(app_name)
+            self.window_z_order.append(app_name)
+            
+            # Raise the window
+            self.open_windows[app_name]['frame'].lift()
+    
+    def minimize_app_window(self, app_name):
+        """Minimize application window"""
+        if app_name in self.open_windows:
+            self.open_windows[app_name]['minimized'] = True
+            self.open_windows[app_name]['frame'].place_forget()
+    
+    def close_app_window(self, app_name):
+        """Close application window"""
+        if app_name in self.open_windows:
+            self.open_windows[app_name]['frame'].destroy()
+            del self.open_windows[app_name]
+            if app_name in self.window_z_order:
+                self.window_z_order.remove(app_name)
+    
     def _load_wallpaper_image(self) -> None:
         candidates: list[str] = [
             "wallpaper_tree.png",
@@ -250,20 +420,17 @@ class OSDesktop:
         self.wallpaper_photo = None
         self.wallpaper_source: str = ""
         pil_image = None
-        try:
-            from PIL import Image
-            pil_image: Any = Image
-        except Exception:
-            pil_image = None
-        for folder: str in search_dirs:
-            for name: str in candidates:
-                path: str = os.path.join(folder, name)
+        if PIL_AVAILABLE:
+            pil_image = Image
+        for folder in search_dirs:
+            for name in candidates:
+                path = os.path.join(folder, name)
                 if not os.path.exists(path):
                     continue
                 if pil_image is not None:
                     try:
-                        self.wallpaper_pil: Image = pil_image.open(path).convert("RGB")
-                        self.wallpaper_source: str = path
+                        self.wallpaper_pil = pil_image.open(path).convert("RGB")
+                        self.wallpaper_source = path
                         return
                     except Exception:
                         self.wallpaper_pil = None
@@ -271,7 +438,7 @@ class OSDesktop:
                     continue
                 try:
                     self.wallpaper_photo = tk.PhotoImage(file=path)
-                    self.wallpaper_source: str = path
+                    self.wallpaper_source = path
                     return
                 except Exception:
                     self.wallpaper_photo = None
@@ -281,7 +448,7 @@ class OSDesktop:
             self._generate_fallback_wallpaper(fallback_path)
         try:
             self.wallpaper_photo = tk.PhotoImage(file=fallback_path)
-            self.wallpaper_source: str = fallback_path
+            self.wallpaper_source = fallback_path
         except Exception:
             self.wallpaper_photo = None
 
@@ -293,17 +460,17 @@ class OSDesktop:
         mid: tuple[int, ...] = self._hex_to_rgb(self.colors["wallpaper_mid"])
         bottom: tuple[int, ...] = self._hex_to_rgb(self.colors["wallpaper_dark"])
         try:
-            with open(path, "wb") as f: os.BufferedWriter:
+            with open(path, "wb") as f:
                 f.write(f"P6\n{width} {height}\n255\n".encode("ascii"))
-                for y: int in range(height):
-                    ratio: float = y / max(1, height - 1)
+                for y in range(height):
+                    ratio = y / max(1, height - 1)
                     if ratio < 0.45:
-                        base: tuple[int, ...] = self._blend(top, mid, ratio / 0.45)
+                        base = self._blend(top, mid, ratio / 0.45)
                     else:
-                        base: tuple[int, ...] = self._blend(mid, bottom, (ratio - 0.45) / 0.55)
+                        base = self._blend(mid, bottom, (ratio - 0.45) / 0.55)
                     row = bytearray()
-                    for x: int in range(width):
-                        xr: float = x / max(1, width - 1)
+                    for x in range(width):
+                        xr = x / max(1, width - 1)
                         glow = int(30 * (1 - abs(0.5 - xr) * 2))
                         r: int = max(0, min(255, base[0] + glow // 3))
                         g: int = max(0, min(255, base[1] + glow // 2))
@@ -330,7 +497,7 @@ class OSDesktop:
         ]
         return canvas.create_polygon(points, smooth=True, splinesteps=24, **kwargs)
 
-    def _create_rounded_panel(self, parent, bg, border, radius=16, inner_pad=10) -> tuple[Canvas, Frame]:
+    def _create_rounded_panel(self, parent, bg, border, radius=16, inner_pad=10) -> tuple[tk.Canvas, tk.Frame]:
         parent_bg = parent.cget("bg")
         shell = tk.Canvas(parent, bg=parent_bg, highlightthickness=0, bd=0)
         body = tk.Frame(shell, bg=bg, highlightthickness=0, bd=0)
@@ -377,7 +544,7 @@ class OSDesktop:
             os.path.join(base_dir, "assets", "app_icons", f"{icon_name}.gif"),
         ]
 
-        for path: str in candidates:
+        for path in candidates:
             if not os.path.exists(path):
                 continue
             try:
@@ -492,7 +659,7 @@ class OSDesktop:
                 widget.bind("<Double-Button-1>", lambda _e: cmd())
                 widget.bind("<Button-1>", self._maybe_close_start_menu)
             
-            for widget: tk.Frame | tk.Canvas | tk.Label in (tile, icon_canvas, label_widget):
+            for widget in (tile, icon_canvas, label_widget):
                 bind_launch(widget)
     
     def build_left_dock(self) -> None:
@@ -517,7 +684,7 @@ class OSDesktop:
         ]
         
         for label, cmd, color, icon_name in buttons:
-            btn = tk.Frame(dock, bg="#0c1324", padx=10, pady=6, highlightthickness=1, highlightbackground=color, cursor="hand2")
+            btn = tk.Frame(dock, bg="#0c1324", padx=10, pady=6, highlightthickness=1, highlightbackground=color, cursor=self.cursor_styles['clickable'])
             btn.pack(fill=tk.X, padx=12, pady=4)
             btn.pack_propagate(False)
             icon = tk.Canvas(btn, width=32, height=32, bg="#0c1324", highlightthickness=0)
@@ -543,7 +710,7 @@ class OSDesktop:
         ]
 
         dock_width: int = (len(icons) * 84) + 24
-        self.dock_shell: tk.Canvas, dock = self._create_rounded_panel(
+        self.dock_shell, dock = self._create_rounded_panel(
             self.desktop,
             bg="#0c1324",
             border=self.colors["taskbar_border"],
@@ -553,15 +720,15 @@ class OSDesktop:
         self.dock_shell.place(relx=0.5, rely=1.0, anchor="s", y=-18, width=dock_width, height=108)
 
         for label, cmd, color, icon_name in icons:
-            tile = tk.Frame(dock, bg="#0c1324", padx=6, pady=5, cursor="hand2")
+            tile = tk.Frame(dock, bg="#0c1324", padx=6, pady=5, cursor=self.cursor_styles['clickable'])
             tile.pack(side=tk.LEFT, padx=2)
 
             app_img = self._load_app_icon_image(icon_name, max_size=48)
             if app_img is not None:
-                icon_widget = tk.Label(tile, image=app_img, bg="#0c1324", cursor="hand2")
+                icon_widget = tk.Label(tile, image=app_img, bg="#0c1324", cursor=self.cursor_styles['clickable'])
                 icon_widget.image = app_img
             else:
-                icon_widget = tk.Canvas(tile, width=48, height=48, bg="#0c1324", highlightthickness=0, cursor="hand2")
+                icon_widget = tk.Canvas(tile, width=48, height=48, bg="#0c1324", highlightthickness=0, cursor=self.cursor_styles['clickable'])
                 self.draw_icon(icon_widget, icon_name, color)
             icon_widget.pack()
 
@@ -571,17 +738,17 @@ class OSDesktop:
                 font=self.fonts["caption"],
                 fg=self.colors["text_primary"],
                 bg="#0c1324",
-                cursor="hand2",
+                cursor=self.cursor_styles['clickable'],
             )
             label_widget.pack(pady=(4, 0))
 
-            for widget: tk.Frame | tk.Label | tk.Canvas in (tile, icon_widget, label_widget):
+            for widget in (tile, icon_widget, label_widget):
                 widget.bind("<Button-1>", lambda _e, c=cmd: self._launch_from_menu(c))
 
     # build_taskbar_content removed; replaced by build_top_info_bar
 
     def build_start_button(self) -> None:
-        self.start_shell: tk.Canvas, holder = self._create_rounded_panel(
+        self.start_shell, holder = self._create_rounded_panel(
             self.desktop,
             bg=self.colors["taskbar"],
             border=self.colors["taskbar_border"],
@@ -600,7 +767,7 @@ class OSDesktop:
             relief=tk.FLAT,
             activebackground=self.colors["accent"],
             activeforeground="white",
-            cursor="hand2",
+            cursor=self.cursor_styles['clickable'],
             padx=12,
             pady=6,
         )
@@ -609,7 +776,7 @@ class OSDesktop:
     def create_start_menu(self) -> None:
         """Create a compact start menu listing the key apps"""
         self.start_menu_visible = False
-        self.start_menu_shell: tk.Canvas, self.start_menu: tk.Frame = self._create_rounded_panel(
+        self.start_menu_shell, self.start_menu = self._create_rounded_panel(
             self.desktop,
             bg=self.colors["menu_bg"],
             border=self.colors["taskbar_border"],
@@ -648,7 +815,7 @@ class OSDesktop:
         ]
         
         for name, desc, cmd in menu_items:
-            item = tk.Frame(self.start_menu, bg=self.colors["menu_item"], highlightthickness=0, cursor="hand2")
+            item = tk.Frame(self.start_menu, bg=self.colors["menu_item"], highlightthickness=0, cursor=self.cursor_styles['clickable'])
             item.pack(fill=tk.X, pady=3)
             tk.Label(
                 item,
@@ -656,7 +823,7 @@ class OSDesktop:
                 font=self.fonts["ui_bold"],
                 fg=self.colors["text_primary"],
                 bg=self.colors["menu_item"],
-                cursor="hand2",
+                cursor=self.cursor_styles['clickable'],
             ).pack(anchor=tk.W, padx=10, pady=(8, 0))
             tk.Label(
                 item,
@@ -664,11 +831,11 @@ class OSDesktop:
                 font=self.fonts["caption"],
                 fg=self.colors["text_muted"],
                 bg=self.colors["menu_item"],
-                cursor="hand2",
+                cursor=self.cursor_styles['clickable'],
             ).pack(anchor=tk.W, padx=10, pady=(0, 8))
             
             item.bind("<Button-1>", lambda _e, c=cmd: self._launch_from_menu(c))
-            for child: tk.Widget | tk.Toplevel in item.winfo_children():
+            for child in item.winfo_children():
                 child.bind("<Button-1>", lambda _e, c=cmd: self._launch_from_menu(c))
         
         footer = tk.Frame(self.start_menu, bg=self.colors["menu_bg"])
@@ -683,7 +850,7 @@ class OSDesktop:
             relief=tk.FLAT,
             activebackground=self.colors["taskbar_border"],
             activeforeground=self.colors["text_primary"],
-            cursor="hand2",
+            cursor=self.cursor_styles['clickable'],
         ).pack(side=tk.LEFT, padx=(0, 8))
         tk.Button(
             footer,
@@ -695,7 +862,7 @@ class OSDesktop:
             relief=tk.FLAT,
             activebackground=self.colors["taskbar_border"],
             activeforeground=self.colors["text_primary"],
-            cursor="hand2",
+            cursor=self.cursor_styles['clickable'],
         ).pack(side=tk.LEFT)
     
     def toggle_start_menu(self) -> None:
@@ -706,17 +873,7 @@ class OSDesktop:
     
     def _show_start_menu(self) -> None:
         self.start_menu_shell.update_idletasks()
-        self.desktop.update_idletasks()
-
-        menu_width = 340
-        menu_height: int = min(460, max(320, self.desktop.winfo_height() - 120))
-        start_x = self.start_button.winfo_rootx() - self.root.winfo_rootx()
-        start_y = self.start_button.winfo_rooty() - self.root.winfo_rooty()
-        x: int = max(12, min(start_x - 6, self.desktop.winfo_width() - menu_width - 12))
-        y: int = max(12, start_y - menu_height - 12)
-
-        self.start_menu_shell.place(x=x, y=y, width=menu_width, height=menu_height)
-        self.start_menu_shell.lift()
+        self.start_menu_shell.place(x=16, y=70)
         self.start_menu_visible = True
     
     def _hide_start_menu(self) -> None:
@@ -805,19 +962,55 @@ class OSDesktop:
         return process
 
     
-    def open_terminal_window(self) -> None:
-        term_window = tk.Toplevel(self.root)
-        term_window.title("Terminal - Operating System OS")
-        term_window.geometry("900x620")
-        shell, holder = self._create_rounded_panel(
-            term_window,
-            bg=self.colors["window_bg"],
-            border=self.colors["taskbar_border"],
-            radius=18,
-            inner_pad=0,
+    def open_file_manager(self) -> None:
+        """Open file manager window"""
+        content_frame = self.create_app_window("file_manager", "File Manager", 800, 600)
+        if content_frame is None:
+            return
+        
+        # Header
+        header = tk.Frame(content_frame, bg=self.colors["window_header"])
+        header.pack(fill=tk.X)
+        tk.Label(header, text="File Manager", font=self.fonts["ui_bold"], fg=self.colors["text_primary"], bg=self.colors["window_header"]).pack(side=tk.LEFT, padx=12, pady=8)
+        tk.Label(header, text=f"/{self.current_directory}", font=self.fonts["caption"], fg=self.colors["text_muted"], bg=self.colors["window_header"]).pack(side=tk.LEFT, padx=8)
+        
+        # File list
+        list_frame = tk.Frame(content_frame, bg=self.colors["window_bg"])
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+        
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        file_list = tk.Listbox(
+            list_frame,
+            font=self.fonts["ui"],
+            bg="#0c1324",
+            fg=self.colors["text_primary"],
+            selectbackground=self.colors["accent"],
+            selectforeground="white",
+            yscrollcommand=scrollbar.set,
+            highlightthickness=1,
+            highlightbackground=self.colors["taskbar_border"]
         )
-        shell.pack(fill=tk.BOTH, expand=True)
-        header = tk.Frame(holder, bg=self.colors["window_header"])
+        file_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=file_list.yview)
+        
+        # Populate file list
+        for name, info in sorted(self.files.items()):
+            if name != "/":
+                display_name = name.lstrip("/")
+                file_list.insert(tk.END, f"{info['icon']} {display_name}")
+        
+        # Bring to front when clicked
+        content_frame.bind("<Button-1>", lambda e: self.bring_to_front("file_manager"))
+    
+    def open_terminal_window(self) -> None:
+        content_frame = self.create_app_window("terminal", "Terminal", 900, 620)
+        if content_frame is None:
+            return
+        
+        # Header
+        header = tk.Frame(content_frame, bg=self.colors["window_header"])
         header.pack(fill=tk.X)
         tk.Label(
             header,
@@ -833,29 +1026,28 @@ class OSDesktop:
             bg=self.colors["window_header"],
             fg=self.colors["text_muted"],
         ).pack(side=tk.LEFT, padx=8)
-        output_frame = tk.Frame(holder, bg="#0b0f19")
-        output_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
-        scrollbar = tk.Scrollbar(output_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Terminal content
+        terminal_frame = tk.Frame(content_frame, bg="#0b0f19")
+        terminal_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        
         output_text = tk.Text(
-            output_frame,
+            terminal_frame,
             bg="#0b0f19",
-            fg="#e5e7eb",
-            insertbackground="#e5e7eb",
+            fg="#22c55e",
             font=self.fonts["mono"],
-            yscrollcommand=scrollbar.set,
-            state=tk.DISABLED,
             relief=tk.FLAT,
-            borderwidth=0,
+            bd=0,
+            wrap=tk.WORD,
+            state=tk.DISABLED,
+            insertbackground=self.colors["accent"]
         )
-        output_text.pack(fill=tk.BOTH, expand=True)
-        scrollbar.config(command=output_text.yview)
-        output_text.config(state=tk.NORMAL)
-        output_text.insert(tk.END, "Operating System OS terminal\n")
-        output_text.insert(tk.END, "Type 'help' for commands, 'exit' to close\n\n")
-        output_text.config(state=tk.DISABLED)
-        input_frame = tk.Frame(holder, bg="#0b0f19")
-        input_frame.pack(fill=tk.X, padx=10, pady=10)
+        output_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=(8, 4))
+        
+        # Input frame
+        input_frame = tk.Frame(terminal_frame, bg="#0b0f19")
+        input_frame.pack(fill=tk.X, padx=8, pady=(4, 8))
+        
         prompt = tk.Label(
             input_frame,
             text=">",
@@ -864,76 +1056,119 @@ class OSDesktop:
             fg="#9ca3af",
         )
         prompt.pack(side=tk.LEFT, padx=(0, 6))
+        
         input_entry = tk.Entry(
             input_frame,
             bg="#111827",
             fg="#e5e7eb",
-            insertbackground="#e5e7eb",
+            insertbackground=self.colors["accent"],
             font=self.fonts["mono"],
             relief=tk.FLAT,
+            cursor=self.cursor_styles['text'],
         )
         input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=6)
+        
         def execute_command(event=None) -> None:
             cmd: str = input_entry.get().strip()
             input_entry.delete(0, tk.END)
             output_text.config(state=tk.NORMAL)
             if cmd:
                 output_text.insert(tk.END, f"> {cmd}\n")
-            if cmd == "help":
-                output_text.insert(tk.END, "Available commands: help, ps, exec, meminfo, ls, exit, clear\n")
-            elif cmd == "ps":
-                output_text.insert(tk.END, "Processes:\n")
-                for p in self.process_table:
-                    if p.state != ProcessState.TERMINATED:
-                        output_text.insert(tk.END, f"  PID {p.pid}: {p.name} ({p.state.value})\n")
-            elif cmd.startswith("exec"):
-                parts: list[str] = cmd.split()
-                if len(parts) > 1:
-                    self.create_process(parts[1])
-                    output_text.insert(tk.END, f"Process created: {parts[1]}\n")
+                if cmd == "help":
+                    output_text.insert(tk.END, "Available commands: help, ps, exec, meminfo, ls, exit, clear\n")
+                elif cmd == "ps":
+                    output_text.insert(tk.END, "PID\tNAME\t\tSTATE\t\tCPU\tMEM\n")
+                    for proc in self.process_table[:10]:  # Show first 10 processes
+                        output_text.insert(tk.END, f"{proc.pid}\t{proc.name}\t\t{proc.state.value}\t{proc.cpu_usage}%\t{proc.memory_kb}KB\n")
+                elif cmd.startswith("exec "):
+                    parts = cmd.split(" ", 1)
+                    if len(parts) > 1:
+                        self.create_process(parts[1])
+                        output_text.insert(tk.END, f"Process created: {parts[1]}\n")
+                    else:
+                        output_text.insert(tk.END, "Usage: exec <name>\n")
+                elif cmd == "meminfo":
+                    free: int = self.memory_total_kb - self.memory_allocated_kb
+                    output_text.insert(tk.END, f"Memory: {self.memory_allocated_kb}/{self.memory_total_kb} KB\n")
+                    output_text.insert(tk.END, f"Free: {free} KB\n")
+                elif cmd == "ls":
+                    output_text.insert(tk.END, "Files in /:\n")
+                    for name in sorted(self.files.keys()):
+                        if name != "/":
+                            info = self.files[name]
+                            size = f"{info['size']} bytes" if info["type"] == "file" else "dir"
+                            output_text.insert(tk.END, f"  {name:<18} {info['type']:<9} {size}\n")
+                elif cmd == "exit":
+                    self.close_app_window("terminal")
+                    return
+                elif cmd == "clear":
+                    output_text.delete("1.0", tk.END)
+                    output_text.config(state=tk.DISABLED)
+                    return
+                elif cmd == "":
+                    pass
                 else:
-                    output_text.insert(tk.END, "Usage: exec <name>\n")
-            elif cmd == "meminfo":
-                free: int = self.memory_total_kb - self.memory_allocated_kb
-                output_text.insert(tk.END, f"Memory: {self.memory_allocated_kb}/{self.memory_total_kb} KB\n")
-                output_text.insert(tk.END, f"Free: {free} KB\n")
-            elif cmd == "ls":
-                output_text.insert(tk.END, "Files in /:\n")
-                for name: str in sorted(self.files.keys()):
-                    if name != "/":
-                        info = self.files[name]
-                        size: str = f"{info['size']} bytes" if info["type"] == "file" else "dir"
-                        output_text.insert(tk.END, f"  {name:<18} {info['type']:<9} {size}\n")
-            elif cmd == "exit":
-                term_window.destroy()
-                return
-            elif cmd == "clear":
-                output_text.delete("1.0", tk.END)
-                output_text.config(state=tk.DISABLED)
-                return
-            elif cmd == "":
-                pass
-            else:
-                output_text.insert(tk.END, f"Unknown command: {cmd}\n")
+                    output_text.insert(tk.END, f"Unknown command: {cmd}\n")
             output_text.see(tk.END)
             output_text.config(state=tk.DISABLED)
+        
         input_entry.bind("<Return>", execute_command)
         input_entry.focus_set()
+        
+        # Bring to front when clicked
+        content_frame.bind("<Button-1>", lambda e: self.bring_to_front("terminal"))
     
     def open_system_monitor(self) -> None:
-        monitor_window = tk.Toplevel(self.root)
-        monitor_window.title("System Monitor - Operating System OS")
-        monitor_window.geometry("980x720")
-        shell, holder = self._create_rounded_panel(
-            monitor_window,
-            bg=self.colors["window_bg"],
-            border=self.colors["taskbar_border"],
-            radius=18,
-            inner_pad=0,
-        )
-        shell.pack(fill=tk.BOTH, expand=True)
-        header = tk.Frame(holder, bg=self.colors["window_header"])
+        content_frame = self.create_app_window("system_monitor", "System Monitor", 980, 720)
+        if content_frame is None:
+            return
+        
+        # Header
+        header = tk.Frame(content_frame, bg=self.colors["window_header"])
         header.pack(fill=tk.X)
+        tk.Label(header, text="System Monitor", font=self.fonts["ui_bold"], fg=self.colors["text_primary"], bg=self.colors["window_header"]).pack(side=tk.LEFT, padx=12, pady=8)
+        
+        # Content area
+        monitor_frame = tk.Frame(content_frame, bg=self.colors["window_bg"])
+        monitor_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+        
+        # Process list
+        tree_frame = tk.Frame(monitor_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+        
+        tree = ttk.Treeview(tree_frame, columns=("PID", "Name", "State", "CPU", "Memory"), show="headings", height=15)
+        tree.heading("PID", text="PID")
+        tree.heading("Name", text="Process Name")
+        tree.heading("State", text="State")
+        tree.heading("CPU", text="CPU %")
+        tree.heading("Memory", text="Memory (KB)")
+        
+        tree.column("PID", width=80)
+        tree.column("Name", width=200)
+        tree.column("State", width=100)
+        tree.column("CPU", width=80)
+        tree.column("Memory", width=120)
+        
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        
+        tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        
+        def populate_tree():
+            for item in tree.get_children():
+                tree.delete(item)
+            for proc in self.process_table:
+                tree.insert("", "end", values=(proc.pid, proc.name, proc.state.value, f"{proc.cpu_usage}%", proc.memory_kb))
+        
+        populate_tree()
+        
+        # Bring to front when clicked
+        content_frame.bind("<Button-1>", lambda e: self.bring_to_front("system_monitor"))
         tk.Label(
             header,
             text="System Monitor",
@@ -1169,18 +1404,12 @@ class OSDesktop:
         update_system_info()
 
     def open_task_manager_window(self) -> None:
-        task_window = tk.Toplevel(self.root)
-        task_window.title("Task Manager - Operating System OS")
-        task_window.geometry("760x460")
-        shell, holder = self._create_rounded_panel(
-            task_window,
-            bg=self.colors["window_bg"],
-            border=self.colors["taskbar_border"],
-            radius=18,
-            inner_pad=0,
-        )
-        shell.pack(fill=tk.BOTH, expand=True)
-        header = tk.Frame(holder, bg=self.colors["window_header"])
+        content_frame = self.create_app_window("task_manager", "Task Manager", 760, 460)
+        if content_frame is None:
+            return
+        
+        # Header
+        header = tk.Frame(content_frame, bg=self.colors["window_header"])
         header.pack(fill=tk.X)
         tk.Label(
             header,
@@ -1196,8 +1425,11 @@ class OSDesktop:
             fg=self.colors["text_muted"],
             bg=self.colors["window_header"],
         ).pack(side=tk.LEFT, padx=8)
-        body = tk.Frame(holder, bg=self.colors["window_bg"])
+        
+        # Content area
+        body = tk.Frame(content_frame, bg=self.colors["window_bg"])
         body.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+        
         summary = tk.Label(
             body,
             text="Uptime 00:00:00 · 1 process",
@@ -1206,6 +1438,7 @@ class OSDesktop:
             bg=self.colors["window_bg"],
         )
         summary.pack(anchor=tk.W, pady=(0, 8))
+        
         columns = ("PID", "Name", "State", "Priority", "Memory", "CPU")
         tree = ttk.Treeview(body, columns=columns, show="headings")
         for col, width, anchor in [
@@ -1222,28 +1455,48 @@ class OSDesktop:
         scroll = ttk.Scrollbar(body, orient=tk.VERTICAL, command=tree.yview)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
         tree.configure(yscrollcommand=scroll.set)
+        
         footer = tk.Label(
-            holder,
+            content_frame,
             text="Memory 512 MB / 12288 MB",
             font=self.fonts["caption"],
             fg=self.colors["text_muted"],
             bg=self.colors["window_bg"],
         )
         footer.pack(anchor=tk.W, padx=12, pady=(0, 10))
+        
         view = {
-            "window": task_window,
             "summary": summary,
             "tree": tree,
             "footer": footer,
         }
         self.task_manager_views.append(view)
+        
         def refresh() -> None:
-            if not task_window.winfo_exists():
-                return
-            self._refresh_task_manager_view(view)
-            task_window.after(1000, refresh)
+            if "task_manager" in self.open_windows:
+                # Update tree with current processes
+                for item in tree.get_children():
+                    tree.delete(item)
+                for proc in self.process_table:
+                    tree.insert("", "end", values=(
+                        proc.pid, proc.name, proc.state.value, 
+                        proc.priority, f"{proc.memory_kb}KB", f"{proc.cpu_usage}%"
+                    ))
+                
+                # Update summary
+                uptime = self.get_uptime()
+                summary.config(text=f"Uptime {uptime[0]}:{uptime[1]:02d}:{uptime[2]:02d} · {len(self.process_table)} processes")
+                
+                # Update footer
+                footer.config(text=f"Memory {self.memory_allocated_kb // 1024} MB / {self.memory_total_kb // 1024} MB")
+                
+                # Schedule next refresh
+                self.root.after(2000, refresh)
+        
         refresh()
-        task_window.bind("<Destroy>", lambda _e, v=view: self._remove_task_manager_view(v))
+        
+        # Bring to front when clicked
+        content_frame.bind("<Button-1>", lambda e: self.bring_to_front("task_manager"))
 
     def _remove_task_manager_view(self, view) -> None:
         if view in self.task_manager_views:
@@ -1301,7 +1554,7 @@ class OSDesktop:
         folders = tk.Frame(body, bg="#0c1324", width=160, highlightthickness=1, highlightbackground=self.colors["taskbar_border"])
         folders.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 12))
         folders.pack_propagate(False)
-        for name: str in ["Inbox", "Starred", "Sent", "Drafts", "Archive"]:
+        for name in ["Inbox", "Starred", "Sent", "Drafts", "Archive"]:
             tk.Button(
                 folders, text=name, font=self.fonts["caption"],
                 bg="#0f172a", fg=self.colors["text_primary"],
@@ -1324,7 +1577,7 @@ class OSDesktop:
             "Release checklist",
             "Reminder: team retro Friday",
         ]
-        for msg: str in messages:
+        for msg in messages:
             msg_list.insert(tk.END, f"• {msg}")
         preview = tk.Frame(right, bg="#0c1324", highlightthickness=1, highlightbackground=self.colors["taskbar_border"])
         preview.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
@@ -1379,7 +1632,7 @@ class OSDesktop:
         progress.create_rectangle(0, 0, 220, 10, fill=self.colors["accent"], width=0)
         controls = tk.Frame(body, bg=self.colors["window_bg"])
         controls.pack(pady=6)
-        for label: str in ["⏮", "⏯", "⏭"]:
+        for label in ["⏮", "⏯", "⏭"]:
             tk.Button(
                 controls, text=label, font=("Segoe UI", 12, "bold"),
                 bg="#0c1324", fg=self.colors["text_primary"],
@@ -1445,7 +1698,7 @@ class OSDesktop:
         nav = tk.Frame(body, bg="#0c1324", width=180, highlightthickness=1, highlightbackground=self.colors["taskbar_border"])
         nav.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 12))
         nav.pack_propagate(False)
-        for section: str in ["Display", "Network", "Sound", "Privacy", "Updates"]:
+        for section in ["Display", "Network", "Sound", "Privacy", "Updates"]:
             tk.Button(
                 nav, text=section, font=self.fonts["caption"],
                 bg="#0f172a", fg=self.colors["text_primary"],
@@ -1485,11 +1738,11 @@ class OSDesktop:
         tk.Label(header, text="Library", font=self.fonts["caption"], fg=self.colors["text_muted"], bg=self.colors["window_header"]).pack(side=tk.LEFT, padx=8)
         grid = tk.Frame(holder, bg=self.colors["window_bg"])
         grid.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
-        for i: int in range(2):
+        for i in range(2):
             grid.columnconfigure(i, weight=1)
-        for r: int in range(3):
+        for r in range(3):
             grid.rowconfigure(r, weight=1)
-        for idx: int in range(6):
+        for idx in range(6):
             r, c = divmod(idx, 2)
             frame = tk.Frame(grid, bg="#0c1324", highlightthickness=1, highlightbackground=self.colors["taskbar_border"])
             frame.grid(row=r, column=c, padx=10, pady=10, sticky="nsew")
